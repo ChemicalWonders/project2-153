@@ -209,7 +209,7 @@ pid_t exec (const char* cmd_line)
     struct process* process = get_child(pid);
     while ((get_child(pid)) && get_child(pid)->load_state == LOAD_PENDING);
 
-    //Fail gracefully... unsuccessful load
+    // if it failed 
     if (process->load_state != LOAD_SUCCESS)
         return -1;
 
@@ -445,5 +445,4 @@ void* kptr (const void* addr)
         exit(-1);
     return kptr;
 }
-
 

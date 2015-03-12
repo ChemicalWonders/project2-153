@@ -12,9 +12,9 @@
 */
 enum load_status
 {
-	LOAD_PENDING,
-	LOAD_SUCCESS,
-	LOAD_FAILURE
+    LOAD_PENDING,
+    LOAD_SUCCESS,
+    LOAD_FAILURE
 };
 
 /*
