@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+//#include <user/syscall.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -100,6 +101,15 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    //Filesystem Bookkeeping
+    struct list file_list;              /* List of all files this thread has opened*/
+    int fd;                             /* The next available file descriptor */
+    struct file* executing_file;        /* File containing open executable for this process */
+
+    //Child process bookkeeping
+    struct list child_list;             /* List of all child processes whose parent is this thread */
+    struct process* process;            /* Process info for a user process running in this thread */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -137,5 +147,10 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+enum thread_status get_thread_status (tid_t tid);
+struct thread* get_thread (tid_t tid);
+struct process* get_child (int pid);
+int exit_child (int pid);
 
 #endif /* threads/thread.h */
