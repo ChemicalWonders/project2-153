@@ -213,16 +213,16 @@ thread_create (const char *name, int priority,
   // Initialize user process
   struct process* pr = malloc(sizeof(struct process));
   pr->pid = (pid_t)tid;
-  pr->parent_tid = thread_current()->tid;
-  pr->already_waiting = false;
+  pr->tid = thread_current()->tid;
+  pr->waiting = false;
   pr->load_state = LOAD_PENDING;
-  pr->is_done = false;
+  pr->done = false;
   pr->fd = FD_START;
   t->process = pr;
   t->fd = FD_START;
 
   //New process is a child to current process
-  list_push_back(&thread_current()->child_list, &pr->cpelem);
+  list_push_back(&thread_current()->child_list, &pr->list_ele);
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -640,7 +640,7 @@ struct process* get_child (int pid)
     for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list);
          e = list_next(e))
     {
-        struct process* p = list_entry(e, struct process, cpelem);
+        struct process* p = list_entry(e, struct process, list_ele);
         if (p->pid == pid)
             return p;
     }
@@ -651,8 +651,8 @@ struct process* get_child (int pid)
 int exit_child (int pid)
 {
   struct process* child = get_child(pid);
-  list_remove(&child->cpelem);
-  int exit_status = child->exit_status;
+  list_remove(&child->list_ele);
+  int exit_stat = child->exit_stat;
   free(child);
-  return exit_status;
+  return exit_stat;
 }

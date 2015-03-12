@@ -22,19 +22,34 @@ enum load_status
      Stores the process information for a user process running in a thread
 */
 struct process {
-    pid_t pid;                          /* My process ID */
-    tid_t parent_tid;                   /* My parent thread TID */
-    bool already_waiting;               /* True: wait() already called on me, False otherwise */
-    enum load_status load_state;        /* LOAD status used for signaling exec() in parent to complete */
-    bool is_done;                       /* True: exit() already called on me, False otherwise */
-    int exit_status;                    /* Return status for exit() call. */
-    int fd;                             /* Next available FD to issue for files opened by this process */
-    struct list_elem cpelem;            /* List element for child_list when a child of other processes */
+   
+    //Process Identification Values
+    pid_t pid;                        // My process ID
+    tid_t tid;                        // My parent thread TID
+    
+    //Simple Values
+    int fd;                           // value of file directory, checks if it can be used or not 
+    int exit_stat;                    // returns if the function is going to exit or not
+    
+    //Function checking
+    bool waiting;                     // If process is waiting, it will be true, otherwise false. 
+    bool done;                        // if exit() is called, then i return true 
+
+    //Data Structures
+    enum load_status load_state;      // load_state is used for changing from waiting to running
+    struct list_elem list_ele;       // element list
 };
 
+//Executes the process, returns the parent thread id if it exists.
 tid_t process_execute (const char *file_name);
+
+//Process will wait
 int process_wait (tid_t);
+
+//Exits the process and leaves
 void process_exit (void);
+
+//Activates the process
 void process_activate (void);
 
 #endif /* userprog/process.h */

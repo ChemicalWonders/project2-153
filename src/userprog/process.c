@@ -43,8 +43,8 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
     
   //Parse file name from args for proper thread name
-  char* save_ptr;
-  char* fname = strtok_r(file_name, " ", &save_ptr);
+  char* spot;
+  char* fname = strtok_r(file_name, " ", &spot);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fname, PRI_DEFAULT, start_process, fn_copy);
@@ -107,24 +107,21 @@ process_wait (tid_t child_tid)// UNUSED)
   //struct thread* t = get_thread(child_tid);
   struct process* child = get_child(child_tid);
 
-  //If invalid or already terminated or already waiting
-  //if (t == NULL || t->process->already_waiting) {
-  if (child == NULL || child->already_waiting) {
+  //If invalid or already terminated or waiting
+  if (child == NULL || child->waiting) {
       //if (t==NULL) printf("tnull\n");
     return -1;
   }
 
   //This child is NOT a child of the current thread
-  //if (thread_current()->tid != t->process->parent_tid) {
-  if (thread_current()->tid != child->parent_tid) {
+  if (thread_current()->tid != child->tid) {
     return -1;
   }
 
-  //t->process->already_waiting = true;
-  child->already_waiting = true;
+  child->waiting = true;
 
   //while ((t = get_thread(child_tid)) && t->status != THREAD_DYING) {}
-  while(!get_child(child_tid)->is_done);
+  while(!get_child(child_tid)->done);
 
   return exit_child((int)child_tid);
 }

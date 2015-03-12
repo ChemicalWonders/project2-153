@@ -185,9 +185,9 @@ void exit (int status)
 
     //Set return status and flag parent
     //This is only needed if it's a child process, as in it has a parent.
-    if (get_thread(current->process->parent_tid)) {
-        current->process->is_done = true;
-        current->process->exit_status = status;
+    if (get_thread(current->process->tid)) {
+        current->process->done = true;
+        current->process->exit_stat = status;
     }
 
     printf("%s: exit(%d)\n", current->name, status);
@@ -401,8 +401,8 @@ void process_cleanup (struct thread* t)
     while (e != list_end(&t->child_list))
     {
         struct list_elem* next = e->next;
-        struct process* p = list_entry(e, struct process, cpelem);
-        list_remove(&p->cpelem);
+        struct process* p = list_entry(e, struct process, list_ele);
+        list_remove(&p->list_ele);
         free(p);
         e = next;
     }
