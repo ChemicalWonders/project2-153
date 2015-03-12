@@ -2,25 +2,27 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include <user/syscall.h>
+#include "userprog/pagedir.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "devices/input.h"
+#include "userprog/process.h"
+#include "threads/malloc.h"
 #include "threads/init.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "devices/shutdown.h"
-#include "userprog/process.h"
-#include "userprog/pagedir.h"
-#include "filesys/file.h"
-#include "filesys/filesys.h"
-#include "devices/input.h"
-#include "threads/malloc.h"
+
+
+
+static void syscall_handler (struct intr_frame *);
 
 void halt (void);
 void exit (int status);
 int wait (pid_t pid);
 pid_t exec (const char* cmd_line);
-
-//Filesystem calls
 bool create (const char* file, unsigned initial_size);
 bool remove (const char* file);
 int open (const char* file);
@@ -31,19 +33,14 @@ void seek (int fd, unsigned position);
 unsigned tell (int fd);
 void close (int fd);
 
-//Filesystem bookkeeeping as recommended by:
-//http://courses.cs.vt.edu/~cs3204/fall2009/pintos-vt-local/Project2Session.pdf
-
-//One global lock for filesystem calls as per slides recommendation
-//(See consulted sources in DESIGNDOC)
 struct lock file_lock;
 
-
 // Info for file in threads file_list
-struct file_info { 
-    int fd;                     /* This files fd */ 
-    struct file* file;          /* This files file pointer */
-    struct list_elem felem;     /* THIS files element in file_list for a thread */
+struct file_info 
+{
+    int fid;                    // file descriptor integer
+    struct list_elem elem;      //element to store in the files
+    struct file *filep;         //points to file
 };
 
 //File helper functions
@@ -60,12 +57,11 @@ void close_file (int fd);
 // Wraps around close_file to free all files in a process file_list
 void close_all_files (struct thread* t);
 
-static void syscall_handler (struct intr_frame *);
 
 /* Other helper functions */
 
 // Validate and return a function argument from the stack
-int get_arg(struct intr_frame* f, int i);
+//int get_arg(struct intr_frame* f, int i);
 
 // Validate and return mutiple arguments from the stack
 void fill_args(struct intr_frame *f, int* args, int numArgs);
@@ -91,87 +87,90 @@ syscall_handler (struct intr_frame *f)
 
     //Arguments passed to syscall, can only have 3 at most
     int funcArgs[3]; 
-    int* syscall_id = (int*)f->esp;
-    switch (*syscall_id) {
+    int *num_syscall = (int*)f->esp;
+    void *kp = NULL;
+    bool func_done = false;
+
+    if (*num_syscall == SYS_HALT)
+    {
+        halt ();
+        return;
+    }
+
+    fill_args (f, &funcArgs[0], 1);
+    switch (*num_syscall) 
+    {
         case SYS_EXIT:
-        {
-            fill_args(f, &funcArgs[0], 1); 
             exit(funcArgs[0]);
-            break;
-        }
-        case SYS_WAIT:
-        {
-            fill_args(f, &funcArgs[0], 1);
-            f->eax = wait(funcArgs[0]);
-            break;
-        }
-        case SYS_HALT:
-        {
-            halt();
-            break;
-        }
-        case SYS_WRITE:
-        {
-            fill_args(f, &funcArgs[0], 3);
-            void* kp = kptr((const void*)funcArgs[1]);
-            f->eax = write(funcArgs[0], (const char*)kp, (unsigned)funcArgs[2]);
-            break;
-        }
-        case SYS_READ:
-        {
-            fill_args(f, &funcArgs[0], 3);
-            void* kp = kptr((const void*)funcArgs[1]);
-            f->eax = read(funcArgs[0], kp, (unsigned)funcArgs[2]);
-            break;
-        }
+            return;
+        
         case SYS_EXEC:
-        {
-            fill_args(f, &funcArgs[0], 1);
-            void* kp = kptr((const void*)funcArgs[0]);
+            kp = kptr((const void*)funcArgs[0]);
             f->eax = exec((const char*)kp);
-            break;
-        }
-        case SYS_CREATE:
-        {
-            fill_args(f, &funcArgs[0], 2);
-            void* kp = kptr((const void*)funcArgs[0]);
-            f->eax = create((const char*)kp, (unsigned)funcArgs[1]);
-            break;
-        }
+            return;
+        
+        case SYS_WAIT:
+            f->eax = wait(funcArgs[0]);
+            return;
+
         case SYS_REMOVE:
-        {
-            fill_args(f, &funcArgs[0], 1);
-            void* kp = kptr((const void*)funcArgs[0]);
+            kp = kptr((const void*)funcArgs[0]);
             f->eax = remove((const char*)kp);
-            break;
-        }
+            return;
+        
         case SYS_OPEN:
-        {
-            fill_args(f, &funcArgs[0], 1);
-            void* kp = kptr((const void*)funcArgs[0]);
+            kp = kptr((const void*)funcArgs[0]);
             f->eax = open((const char*)kp);
-            break;
-        }
+            return;
+        
         case SYS_FILESIZE:
-        {
-            fill_args(f, &funcArgs[0], 1);
             f->eax = filesize(funcArgs[0]);
-            break;
-        }
-        case SYS_SEEK:
-        {
-            fill_args(f, &funcArgs[0], 2);
-            seek(funcArgs[0], (unsigned)funcArgs[1]);
-            break;
-        }
+            return;
+
         case SYS_TELL:
-        {
-            fill_args(f, &funcArgs[0], 1);
             f->eax = tell(funcArgs[0]);
-        }
+            return;
+        
+        case SYS_CLOSE:
+            close (funcArgs[0]);
+            return;
+        
         default:
             break; 
     }
+    fill_args (f, &funcArgs[0], 2);
+    switch (*num_syscall)
+    {
+        case SYS_CREATE:
+            kp = kptr((const void*)funcArgs[0]);
+            f->eax = create((const char*)kp, (unsigned)funcArgs[1]);
+            return;
+
+        case SYS_SEEK:
+            seek(funcArgs[0], (unsigned)funcArgs[1]);
+            return;
+
+        default:
+            break;
+    }
+
+    fill_args (f, &funcArgs[0], 3);
+    switch (*num_syscall)
+    {
+        case SYS_READ:
+            kp = kptr((const void*)funcArgs[1]);
+            f->eax = read(funcArgs[0], kp, (unsigned)funcArgs[2]);
+            return;
+
+        case SYS_WRITE:
+            kp = kptr((const void*)funcArgs[1]);
+            f->eax = write(funcArgs[0], (const char*)kp, (unsigned)funcArgs[2]);
+            return;
+
+        default:
+            break;
+    }
+
 }
 
 void halt (void)
@@ -231,7 +230,7 @@ int write (int fd, const void* buffer, unsigned size)
 
     //Do filesys call
     lock_acquire(&file_lock);
-    int ret = file_write(f->file, buffer, size);
+    int ret = file_write(f->filep, buffer, size);
     lock_release(&file_lock);
     return ret;
 }
@@ -273,7 +272,7 @@ int read (int fd, void* buffer, unsigned size)
 
     //Do filesys call
     lock_acquire(&file_lock);
-    int ret = file_read(f->file, buffer, size);
+    int ret = file_read(f->filep, buffer, size);
     lock_release(&file_lock);
     return ret;
 }
@@ -286,7 +285,7 @@ int filesize (int fd)
 
     //Do filesys call
     lock_acquire(&file_lock);
-    int ret = file_length(f->file);
+    int ret = file_length(f->filep);
     lock_release(&file_lock);
     return ret;
 }
@@ -299,7 +298,7 @@ void seek (int fd, unsigned position)
 
     //Do filesys call
     lock_acquire(&file_lock);
-    file_seek(f->file, position);
+    file_seek(f->filep, position);
     lock_release(&file_lock);
 }
 
@@ -311,7 +310,7 @@ unsigned tell (int fd)
 
     //Do filesys call
     lock_acquire(&file_lock);
-    unsigned ret = (unsigned)file_tell(f->file);
+    unsigned ret = (unsigned)file_tell(f->filep);
     lock_release(&file_lock);
     return ret;
 }
@@ -340,8 +339,8 @@ void close_all_files (struct thread* t)
     while (e != list_end(&t->file_list))
     {
         struct list_elem* next = e->next;
-        struct file_info* f = list_entry(e, struct file_info, felem);
-        close_file(f->fd);
+        struct file_info* f = list_entry(e, struct file_info, elem);
+        close_file(f->fid);
         e = next;
     }
 }
@@ -353,8 +352,8 @@ void close_file (int fd)
     if (!f) return;
 
     //Free resources
-    list_remove(&f->felem);
-    file_close(f->file);
+    list_remove(&f->elem);
+    file_close(f->filep);
     free(f);
 }
 
@@ -367,12 +366,12 @@ int process_file (const char* filename)
     //Allocate resources and add to file_list
     struct thread* current = thread_current();
     struct file_info* f = malloc(sizeof(struct file_info));
-    f->file = file;
-    f->fd = current->fd;
+    f->filep = file;
+    f->fid = current->fd;
     ++current->fd;
-    list_push_back(&current->file_list, &f->felem);
+    list_push_back(&current->file_list, &f->elem);
 
-    return f->fd;
+    return f->fid;
 }
 
 //Gets file from file_list by fd
@@ -384,8 +383,8 @@ struct file_info* get_file (int fd)
     for (e = list_begin(&current->file_list); e != list_end(&current->file_list);
          e = list_next(e))
     {
-        struct file_info* f = list_entry(e, struct file_info, felem);
-        if (f->fd == fd)
+        struct file_info* f = list_entry(e, struct file_info, elem);
+        if (f->fid == fd)
             return f;
     }
     return NULL;
@@ -407,19 +406,23 @@ void process_cleanup (struct thread* t)
         e = next;
     }
 }
-
+/*
 int get_arg(struct intr_frame *f, int i)
 {
     int* arg = (int*)f->esp + 1 + i;
     test_bad_address((const void*)arg);
     return *arg;
 }
-
+*/
 void fill_args(struct intr_frame *f, int* args, int numArgs)
 {
     int i;
     for (i = 0; i < numArgs; ++i)
-        args[i] = get_arg(f, i);
+    {
+        int *arg = (int*)f->esp + 1 + i;
+        test_bad_address((const void*)arg);
+        args[i] = *arg;
+    }
 }
 
 void test_bad_address (const void* addr)
