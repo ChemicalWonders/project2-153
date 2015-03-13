@@ -29,7 +29,7 @@ struct process_info {
     
     //Simple Values
     int fd;                           // value of file directory, checks if it can be used or not 
-    int exit_stat;                    // returns if the function is going to exit or not
+    int exit_status;                    // returns if the function is going to exit or not
     
     //Function checking
     bool waiting;                     // If process is waiting, it will be true, otherwise false. 

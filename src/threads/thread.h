@@ -103,12 +103,12 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
 
     //Filesystem Bookkeeping
-    struct list file_list;              /* List of all files this thread has opened*/
-    int fd;                             /* The next available file descriptor */
+    struct list files;              /* List of all files this thread has opened*/
+    int fid;                             /* The next available file descriptor */
     struct file* executing_file;        /* File containing open executable for this process */
 
     //Child process bookkeeping
-    struct list child_list;             /* List of all child processes whose parent is this thread */
+    struct list children;             /* List of all child processes whose parent is this thread */
     struct process_info *thread_process;            /* Process info for a user process running in this thread */
   };
 

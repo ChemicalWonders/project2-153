@@ -21,6 +21,14 @@
 #include "threads/synch.h"
 #include "userprog/syscall.h"
 
+
+struct exec_helper 
+{
+    const char *file_name;            //program to load
+    struct semaphore loading;        //check is accessing resources so others cannot conflict
+    bool isLoaded;                  //true if done accessing the resources
+};
+
 static thread_func start_process NO_RETURN;
 //static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static bool load (const char* cmdline, void (**eip) (void), void **esp, char ** save_ptr);

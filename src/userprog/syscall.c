@@ -35,7 +35,7 @@ void close (int fd);
 
 struct lock file_lock;
 
-// Info for file in threads file_list
+// Info for file in threads files
 struct file_info 
 {
     int fid;                    // file descriptor integer
@@ -208,7 +208,7 @@ exit (int status)
     //Set return status and flag parent
     //This is only needed if it's a child process, as in it has a parent.
     if (get_thread(cur->thread_process->tid)) {
-        cur->thread_process->exit_stat = status;
+        cur->thread_process->exit_status = status;
         cur->thread_process->is_done = true;
     }
 
@@ -263,7 +263,7 @@ write (int fd, const void *buffer, unsigned size)
     f = NULL;
     struct thread* cur = thread_current();
     struct list_elem *e;
-    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
     {
         struct file_info *tmpf = list_entry(e, struct file_info, elem);
         if (tmpf->fid == fd)
@@ -321,7 +321,7 @@ read (int fd, void* buffer, unsigned size)
     struct file_info *f = NULL;
     struct thread* cur = thread_current();
     struct list_elem *e;
-    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
     {
         struct file_info *tmpf = list_entry(e, struct file_info, elem);
         if (tmpf->fid == fd)
@@ -350,7 +350,7 @@ filesize (int fd)
     struct file_info *f = NULL;
     struct thread* cur = thread_current();
     struct list_elem *e;
-    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
     {
         struct file_info *tmpf = list_entry(e, struct file_info, elem);
         if (tmpf->fid == fd)
@@ -379,7 +379,7 @@ seek (int fd, unsigned position)
     struct file_info *f = NULL;
     struct thread* cur = thread_current();
     struct list_elem *e;
-    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
     {
         struct file_info *tmpf = list_entry(e, struct file_info, elem);
         if (tmpf->fid == fd)
@@ -420,7 +420,7 @@ tell (int fd)
     struct file_info *f = NULL;
     struct thread* cur = thread_current();
     struct list_elem *e;
-    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
     {
         struct file_info *tmpf = list_entry(e, struct file_info, elem);
         if (tmpf->fid == fd)
@@ -464,7 +464,7 @@ close_file (int fd)
     struct file_info *f = NULL;
     struct thread* cur = thread_current();
     struct list_elem *e;
-    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
     {
         struct file_info *tmpf = list_entry(e, struct file_info, elem);
         if (tmpf->fid == fd)
@@ -493,7 +493,7 @@ process_file (const char* filename)
         return -1;
     }
 
-    //Allocate resources and add to file_list
+    //Allocate resources and add to files
     struct thread* cur = thread_current();
     struct file_info* f = malloc(sizeof(struct file_info));
 
@@ -502,10 +502,10 @@ process_file (const char* filename)
     }
 
     f->filep = file;
-    f->fid = cur->fd;
-    cur->fd = cur->fd +1;
+    f->fid = cur->fid;
+    cur->fid = cur->fid +1;
 
-    list_push_back(&cur->file_list, &f->elem);
+    list_push_back(&cur->files, &f->elem);
 
     return f->fid;
 }
@@ -513,8 +513,8 @@ process_file (const char* filename)
 void 
 process_cleanup (struct thread* t)
 {
-    struct list_elem* e = list_begin(&t->file_list);
-    while (e != list_end(&t->file_list))
+    struct list_elem* e = list_begin(&t->files);
+    while (e != list_end(&t->files))
     {
         struct list_elem* next = e->next;
         struct file_info* f = list_entry(e, struct file_info, elem);
@@ -522,8 +522,8 @@ process_cleanup (struct thread* t)
         e = next;
     }
 
-    e = list_begin(&t->child_list);
-    while (e != list_end(&t->child_list))
+    e = list_begin(&t->children);
+    while (e != list_end(&t->children))
     {
         struct list_elem* next = e->next;
         struct process_info *pros = list_entry(e, struct process_info, list_ele);

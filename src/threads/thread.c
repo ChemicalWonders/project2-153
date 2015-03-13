@@ -220,10 +220,10 @@ thread_create (const char *name, int priority,
   pr->waiting = false;
   
   t->thread_process = pr;
-  t->fd = FD_START;
+  t->fid = FD_START;
 
   //New process is a child to current process
-  list_push_back(&thread_current()->child_list, &pr->list_ele);
+  list_push_back(&thread_current()->children, &pr->list_ele);
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -490,8 +490,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 
-  list_init(&t->file_list);
-  list_init(&t->child_list);
+  list_init(&t->files);
+  list_init(&t->children);
   t->thread_process = NULL;
 }
 
@@ -610,13 +610,15 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 //Get a threads status by checking the all threads list
-enum thread_status get_thread_status (tid_t tid)
+enum thread_status 
+get_thread_status (tid_t tid)
 {
     return get_thread(tid)->status;
 }
 
 //Get a thread from the all thread list
-struct thread* get_thread (tid_t tid)
+struct thread * 
+get_thread (tid_t tid)
 {
   enum intr_level old_level = intr_disable(); 
   struct list_elem* e;
@@ -634,11 +636,12 @@ struct thread* get_thread (tid_t tid)
 }
 
 //Get a child process from the child_list
-struct process_info* get_child (int pid)
+struct process_info * 
+get_child (int pid)
 {
     struct list_elem *e;
     struct thread *cur = thread_current();
-    for (e = list_begin(&cur->child_list); e != list_end(&cur->child_list);
+    for (e = list_begin(&cur->children); e != list_end(&cur->children);
          e = list_next(e))
     {
         struct process_info *p = list_entry(e, struct process_info, list_ele);
@@ -649,11 +652,12 @@ struct process_info* get_child (int pid)
 }
 
 //Free child resources
-int exit_child (int pid)
+int 
+exit_child (int pid)
 {
   struct process_info *child = get_child(pid);
   list_remove(&child->list_ele);
-  int exit_stat = child->exit_stat;
+  int exit_status = child->exit_status;
   free(child);
-  return exit_stat;
+  return exit_status;
 }
