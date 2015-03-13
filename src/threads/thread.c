@@ -621,11 +621,11 @@ struct thread *
 get_thread (tid_t tid)
 {
   enum intr_level old_level = intr_disable(); 
-  struct list_elem* e;
-  for (e = list_begin (&all_list); e != list_end (&all_list);
-       e = list_next(e))
+  struct list_elem* element;
+  for (element = list_begin (&all_list); element != list_end (&all_list);
+       element = list_next(element))
   {
-     struct thread *t = list_entry (e, struct thread, allelem);
+     struct thread *t = list_entry (element, struct thread, allelem);
      if (t->tid == tid) {
           intr_set_level (old_level);    
          return t;
@@ -639,25 +639,25 @@ get_thread (tid_t tid)
 struct process_info * 
 get_child (int pid)
 {
-    struct list_elem *e;
+    struct list_elem *element;
     struct thread *cur = thread_current();
-    for (e = list_begin(&cur->children); e != list_end(&cur->children);
-         e = list_next(e))
+    for (element = list_begin(&cur->children); element != list_end(&cur->children);
+         element = list_next(element))
     {
-        struct process_info *p = list_entry(e, struct process_info, list_ele);
-        if (p->pid == pid)
-            return p;
+        struct process_info *ptemp = list_entry(element, struct process_info, list_ele);
+        if (ptemp->pid == pid)
+            return ptemp;
     }
     return NULL;
 }
 
 //Free child resources
 int 
-exit_child (int pid)
+free_child (int pid)
 {
-  struct process_info *child = get_child(pid);
-  list_remove(&child->list_ele);
-  int exit_status = child->exit_status;
-  free(child);
+  struct process_info *child_process = get_child(pid);
+  list_remove(&child_process->list_ele);
+  int exit_status = child_process->exit_status;
+  free(child_process);
   return exit_status;
 }

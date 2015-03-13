@@ -151,6 +151,6 @@ int thread_get_load_avg (void);
 enum thread_status get_thread_status (tid_t tid);
 struct thread* get_thread (tid_t tid);
 struct process_info * get_child (int pid);
-int exit_child (int pid);
+int free_child (int pid);
 
 #endif /* threads/thread.h */

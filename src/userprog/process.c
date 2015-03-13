@@ -41,18 +41,26 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
+  char *fc;
+
   tid_t tid;
 
-  /* Make a copy of FILE_NAME.
+  /* Make 2 copies of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
+
+  fc = palloc_get_page(0);
+  if(fc == NULL)
+    return TID_ERROR;
+
+  strlcpy (fc, file_name, PGSIZE);
   strlcpy (fn_copy, file_name, PGSIZE);
     
   //Parse file name from args for proper thread name
   char *spot;
-  char *fname = strtok_r(file_name, " ", &spot);
+  char *fname = strtok_r(fc, " ", &spot);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fname, PRI_DEFAULT, start_process, fn_copy);
@@ -83,8 +91,7 @@ start_process (void *file_name_)
 
   //Set user process load status
   thread_current()->thread_process->load_state = success ? LOAD_SUCCESS : LOAD_FAILURE;
-
-  /* If load failed, quit. */
+  
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
@@ -109,15 +116,13 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid)// UNUSED) 
+process_wait (tid_t child_tid)  
 {
   //Get child thread
-  //struct thread* t = get_thread(child_tid);
   struct process_info *child = get_child(child_tid);
 
   //If invalid or already terminated or waiting
   if (child == NULL || child->waiting) {
-      //if (t==NULL) printf("tnull\n");
     return -1;
   }
 
@@ -128,10 +133,9 @@ process_wait (tid_t child_tid)// UNUSED)
 
   child->waiting = true;
 
-  //while ((t = get_thread(child_tid)) && t->status != THREAD_DYING) {}
   while(!get_child(child_tid)->is_done);
 
-  return exit_child((int)child_tid);
+  return free_child((int)child_tid);
 }
 
 
