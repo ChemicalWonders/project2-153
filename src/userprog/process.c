@@ -43,8 +43,8 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
     
   //Parse file name from args for proper thread name
-  char* spot;
-  char* fname = strtok_r(file_name, " ", &spot);
+  char *spot;
+  char *fname = strtok_r(file_name, " ", &spot);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fname, PRI_DEFAULT, start_process, fn_copy);
@@ -63,7 +63,7 @@ start_process (void *file_name_)
   bool success;
 
   //Parse file name from args for proper process name
-  char* save_ptr;
+  char *save_ptr;
   file_name = strtok_r(file_name, " ", &save_ptr);
   
   /* Initialize interrupt frame and load executable. */
@@ -121,7 +121,7 @@ process_wait (tid_t child_tid)// UNUSED)
   child->waiting = true;
 
   //while ((t = get_thread(child_tid)) && t->status != THREAD_DYING) {}
-  while(!get_child(child_tid)->done);
+  while(!get_child(child_tid)->is_done);
 
   return exit_child((int)child_tid);
 }

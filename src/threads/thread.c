@@ -44,9 +44,9 @@ static struct lock tid_lock;
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
-    void *eip;                  /* Return address. */
+    void* eip;                  /* Return address. */
     thread_func *function;      /* Function to call. */
-    void *aux;                  /* Auxiliary data for function. */
+    void* aux;                  /* Auxiliary data for function. */
   };
 
 /* Statistics. */
@@ -212,12 +212,13 @@ thread_create (const char *name, int priority,
 
   // Initialize user process
   struct process_info *pr = malloc(sizeof(struct process_info));
+  pr->load_state = LOAD_PENDING;
+  pr->is_done = false;
+  pr->fd = FD_START;
   pr->pid = (pid_t)tid;
   pr->tid = thread_current()->tid;
   pr->waiting = false;
-  pr->load_state = LOAD_PENDING;
-  pr->done = false;
-  pr->fd = FD_START;
+  
   t->thread_process = pr;
   t->fd = FD_START;
 

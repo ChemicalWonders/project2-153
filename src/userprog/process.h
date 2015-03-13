@@ -33,7 +33,7 @@ struct process_info {
     
     //Function checking
     bool waiting;                     // If process is waiting, it will be true, otherwise false. 
-    bool done;                        // if exit() is called, then i return true 
+    bool is_done;                        // if exit() is called, then i return true 
 
     //Data Structures
     enum load_status load_state;      // load_state is used for changing from waiting to running

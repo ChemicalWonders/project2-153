@@ -22,15 +22,15 @@ static void syscall_handler (struct intr_frame *);
 void halt (void);
 void exit (int status);
 int wait (pid_t pid);
-pid_t exec (const char* cmd_line);
-bool create (const char* file, unsigned initial_size);
-bool remove (const char* file);
-int open (const char* file);
 int filesize (int fd);
 int read (int fd, void* buffer, unsigned length);
 int write (int fd, const void* buffer, unsigned length);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
+pid_t exec (const char* cmd_line);
+bool create (const char* file, unsigned initial_size);
+bool remove (const char* file);
+int open (const char* file);
 void close (int fd);
 
 struct lock file_lock;
@@ -43,34 +43,12 @@ struct file_info
     struct file *filep;         //points to file
 };
 
-//File helper functions
-
-// Build the file_info struct and add it to a process
-int process_file (const char* file); 
-
-// Get the file_info by fd or NULL if not valid
-struct file_info* get_file (int fd);
-
-// Close the file by fd. This wraps around file_close but also frees resources from file_info and file_list
-void close_file (int fd);
-
-// Wraps around close_file to free all files in a process file_list
-void close_all_files (struct thread* t);
-
-
-/* Other helper functions */
-
-// Validate and return a function argument from the stack
-//int get_arg(struct intr_frame* f, int i);
-
-// Validate and return mutiple arguments from the stack
 void fill_args(struct intr_frame *f, int* args, int numArgs);
-
-// Validate an address and exit(-1) if invalid or unmapped
-void test_bad_address(const void* addr);
-
-// Validate and return kernel mapping of user address
-void* kptr (const void* addr);
+void *kptr (const void* addr);
+int process_file (const char* file); 
+void close_file (int fd);
+bool file_exists (struct file *file_ptr);
+bool file_info_exists (struct file_info *file_ptr);
 
 void
 syscall_init (void) 
@@ -82,8 +60,9 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-    // Validate call number
-    test_bad_address(f->esp);
+    if (!is_user_vaddr(f->esp))
+            exit(-1);
+        kptr(f->esp);
 
     //Arguments passed to syscall, can only have 3 at most
     int syscall_args[3]; 
@@ -94,6 +73,10 @@ syscall_handler (struct intr_frame *f)
     if (*num_syscall == SYS_HALT)
     {
         halt ();
+        func_done = true;
+    }
+
+    if(func_done){
         return;
     }
 
@@ -102,56 +85,75 @@ syscall_handler (struct intr_frame *f)
     {
         case SYS_EXIT:
             exit(syscall_args[0]);
-            return;
+            func_done = true;
+            break;
         
         case SYS_EXEC:
             kp = kptr((const void*)syscall_args[0]);
             f->eax = exec((const char*)kp);
-            return;
+            func_done = true;
+            break;
         
         case SYS_WAIT:
             f->eax = wait(syscall_args[0]);
-            return;
+            func_done = true;
+            break;
 
         case SYS_REMOVE:
             kp = kptr((const void*)syscall_args[0]);
             f->eax = remove((const char*)kp);
-            return;
+            func_done = true;
+            break;
         
         case SYS_OPEN:
             kp = kptr((const void*)syscall_args[0]);
             f->eax = open((const char*)kp);
-            return;
+            func_done = true;
+            break;
         
         case SYS_FILESIZE:
             f->eax = filesize(syscall_args[0]);
-            return;
+            func_done = true;
+            break;
 
         case SYS_TELL:
             f->eax = tell(syscall_args[0]);
-            return;
+            func_done = true;
+            break;
         
         case SYS_CLOSE:
             close (syscall_args[0]);
-            return;
+            func_done = true;
+            break;
         
         default:
             break; 
     }
+
+    if(func_done){
+        return;
+    }
+
     fill_args (f, &syscall_args[0], 2);
     switch (*num_syscall)
     {
         case SYS_CREATE:
             kp = kptr((const void*)syscall_args[0]);
             f->eax = create((const char*)kp, (unsigned)syscall_args[1]);
-            return;
+            func_done = true;
+            break;
 
         case SYS_SEEK:
             seek(syscall_args[0], (unsigned)syscall_args[1]);
-            return;
+            func_done = true;
+            break;
 
         default:
             break;
+    }
+
+    if(func_done){
+        return;
     }
 
     fill_args (f, &syscall_args[0], 3);
@@ -160,40 +162,62 @@ syscall_handler (struct intr_frame *f)
         case SYS_READ:
             kp = kptr((const void*)syscall_args[1]);
             f->eax = read(syscall_args[0], kp, (unsigned)syscall_args[2]);
-            return;
+            func_done = true;
+            break;
 
         case SYS_WRITE:
             kp = kptr((const void*)syscall_args[1]);
             f->eax = write(syscall_args[0], (const char*)kp, (unsigned)syscall_args[2]);
-            return;
+            func_done = true;
+            break;
 
         default:
             break;
     }
+    if(func_done){
+        return;
+    }
 
 }
 
-void halt (void)
+bool
+file_exists (struct file *file_ptr)
+{
+    if (file_ptr != NULL)
+    {
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
+
+
+void 
+halt (void)
 {
     shutdown_power_off();
 }
 
-void exit (int status)
+void 
+exit (int status)
 {
     struct thread *cur = thread_current();
 
     //Set return status and flag parent
     //This is only needed if it's a child process, as in it has a parent.
     if (get_thread(cur->thread_process->tid)) {
-        cur->thread_process->done = true;
         cur->thread_process->exit_stat = status;
+        cur->thread_process->is_done = true;
     }
 
     printf("%s: exit(%d)\n", cur->name, status);
     thread_exit();
 }
 
-int wait (pid_t pid)
+int 
+wait (pid_t pid)
 {
     return process_wait(pid);
 }
@@ -216,36 +240,65 @@ pid_t exec (const char* cmd_line)
     return pid;
 }
 
-int write (int fd, const void* buffer, unsigned size)
+bool 
+file_info_exists (struct file_info *file_ptr)
 {
-    //Write to stdout
+    if (file_ptr != NULL)
+    {
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
+int
+write (int fd, const void *buffer, unsigned size)
+{
     if (fd == STDOUT_FILENO) {
         putbuf(buffer, size);
         return size;
     }
+    struct file_info *f;
+    f = NULL;
+    struct thread* cur = thread_current();
+    struct list_elem *e;
+    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    {
+        struct file_info *tmpf = list_entry(e, struct file_info, elem);
+        if (tmpf->fid == fd)
+        {
+            f = tmpf;
+            break;
+        }
+    }
+    if (!file_info_exists (f)){
+        return -1;
+    }
 
-    //Error if file isn't open
-    struct file_info* f = get_file(fd);
-    if (!f) return -1;
-
-    //Do filesys call
+    //lock the stack and then use the super helpful filesys call
     lock_acquire(&file_lock);
+    //using the filesys call
     int ret = file_write(f->filep, buffer, size);
     lock_release(&file_lock);
     return ret;
+    
 }
 
-bool create (const char* file, unsigned initial_size)
+bool 
+create (const char* file, unsigned initial_size)
 {
-    //Do filesys call
+    //lock the stack and then use the super helpful filesys call
     lock_acquire(&file_lock);
+    //using the filesys call
     bool ret = filesys_create(file, initial_size);
     lock_release(&file_lock);
 
     return ret;
 }
 
-bool remove (const char* file)
+bool 
+remove (const char* file)
 {
     lock_acquire(&file_lock);
     bool ret = filesys_remove(file);
@@ -254,7 +307,8 @@ bool remove (const char* file)
     return ret;
 }
 
-int read (int fd, void* buffer, unsigned size)
+int 
+read (int fd, void* buffer, unsigned size)
 {
     //Read from stdin
     if (fd == STDIN_FILENO) {
@@ -264,75 +318,200 @@ int read (int fd, void* buffer, unsigned size)
             buf[i] = input_getc();
         return size;
     }
+    struct file_info *f = NULL;
+    struct thread* cur = thread_current();
+    struct list_elem *e;
+    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    {
+        struct file_info *tmpf = list_entry(e, struct file_info, elem);
+        if (tmpf->fid == fd)
+        {
+            f = tmpf;
+            break;
+        }
+    }
+    
+    if (!file_info_exists (f)){
+        return -1;
+    }
 
-    //Fail if file is not open
-    struct file_info* f = get_file(fd);
-    if (!f) return -1;
-
-    //Do filesys call
+    //lock the stack and then use the super helpful filesys call
     lock_acquire(&file_lock);
+    //using the filesys call
     int ret = file_read(f->filep, buffer, size);
     lock_release(&file_lock);
     return ret;
 }
 
-int filesize (int fd)
+int 
+filesize (int fd)
 {
     //Fail if file is not open
-    struct file_info* f = get_file(fd);
-    if (!f) return -1;
+    struct file_info *f = NULL;
+    struct thread* cur = thread_current();
+    struct list_elem *e;
+    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    {
+        struct file_info *tmpf = list_entry(e, struct file_info, elem);
+        if (tmpf->fid == fd)
+        {
+            f = tmpf;
+            break;
+        }
+    }
 
-    //Do filesys call
+    if (!file_info_exists (f)){
+        return -1;
+    }
+
+    //lock the stack and then use the super helpful filesys call
     lock_acquire(&file_lock);
+    //using the filesys call
     int ret = file_length(f->filep);
     lock_release(&file_lock);
     return ret;
 }
 
-void seek (int fd, unsigned position)
+void 
+seek (int fd, unsigned position)
 {
     //Fail if file is not open
-    struct file_info *f = get_file(fd);
-    if (!f) return;
+    struct file_info *f = NULL;
+    struct thread* cur = thread_current();
+    struct list_elem *e;
+    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    {
+        struct file_info *tmpf = list_entry(e, struct file_info, elem);
+        if (tmpf->fid == fd)
+        {
+            f = tmpf;
+            break;
+        }
+    }
 
-    //Do filesys call
+    if (!file_info_exists (f)){
+        return;
+    }
+
+    //lock the stack and then use the super helpful filesys call
     lock_acquire(&file_lock);
+    //using the filesys call
     file_seek(f->filep, position);
     lock_release(&file_lock);
 }
 
-unsigned tell (int fd)
+void 
+close (int fd)
+{
+    //lock the stack and then use the super helpful filesys call
+    if (fd <= 0){
+        return;
+    }
+    lock_acquire(&file_lock);
+    //using the filesys call
+    close_file(fd);
+    lock_release(&file_lock);
+}
+
+unsigned 
+tell (int fd)
 {
     //Fail if file is not open
-    struct file_info* f = get_file(fd);
-    if (!f) return -1;
+    struct file_info *f = NULL;
+    struct thread* cur = thread_current();
+    struct list_elem *e;
+    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    {
+        struct file_info *tmpf = list_entry(e, struct file_info, elem);
+        if (tmpf->fid == fd)
+        {
+            f = tmpf;
+            break;
+        }
+    }
 
-    //Do filesys call
+    if (!file_info_exists (f)){
+        return -1;
+    }
+
+    //lock the stack and then use the super helpful filesys call
     lock_acquire(&file_lock);
+    //using the filesys call
     unsigned ret = (unsigned)file_tell(f->filep);
     lock_release(&file_lock);
     return ret;
 }
 
-int open (const char* file)
+int 
+open (const char *file)
 {
-    //Do filesys call
+    //lock the stack and then use the super helpful filesys call
+    if (!file){
+        return -1;
+    }
     lock_acquire(&file_lock);
+    //using the filesys call
     int ret = process_file(file);
     lock_release(&file_lock);
 
     return ret;
 }
 
-void close (int fd)
+void 
+close_file (int fd)
 {
-    //Do filesys call
-    lock_acquire(&file_lock);
-    close_file(fd);
-    lock_release(&file_lock);
+    //Fail if not open
+    struct file_info *f = NULL;
+    struct thread* cur = thread_current();
+    struct list_elem *e;
+    for (e = list_begin(&cur->file_list); e != list_end(&cur->file_list); e = list_next(e))
+    {
+        struct file_info *tmpf = list_entry(e, struct file_info, elem);
+        if (tmpf->fid == fd)
+        {
+            f = tmpf;
+            break;
+        }
+    }
+
+    if (!file_info_exists (f)){
+        return;
+    }
+
+    list_remove(&f->elem);
+    file_close(f->filep);
+    free(f);
 }
 
-void close_all_files (struct thread* t)
+int 
+process_file (const char* filename)
+{
+    //Fail if can't open
+    struct file *file = filesys_open(filename);
+
+    if (!file_exists (file)){
+        return -1;
+    }
+
+    //Allocate resources and add to file_list
+    struct thread* cur = thread_current();
+    struct file_info* f = malloc(sizeof(struct file_info));
+
+    if (!file_info_exists (f)){
+        return -1;
+    }
+
+    f->filep = file;
+    f->fid = cur->fd;
+    cur->fd = cur->fd +1;
+
+    list_push_back(&cur->file_list, &f->elem);
+
+    return f->fid;
+}
+
+void 
+process_cleanup (struct thread* t)
 {
     struct list_elem* e = list_begin(&t->file_list);
     while (e != list_end(&t->file_list))
@@ -342,60 +521,8 @@ void close_all_files (struct thread* t)
         close_file(f->fid);
         e = next;
     }
-}
 
-void close_file (int fd)
-{
-    //Fail if not open
-    struct file_info* f = get_file(fd);
-    if (!f) return;
-
-    //Free resources
-    list_remove(&f->elem);
-    file_close(f->filep);
-    free(f);
-}
-
-int process_file (const char* filename)
-{
-    //Fail if can't open
-    struct file* file = filesys_open(filename);
-    if (!file) return -1;
-
-    //Allocate resources and add to file_list
-    struct thread* current = thread_current();
-    struct file_info* f = malloc(sizeof(struct file_info));
-    f->filep = file;
-    f->fid = current->fd;
-    ++current->fd;
-    list_push_back(&current->file_list, &f->elem);
-
-    return f->fid;
-}
-
-//Gets file from file_list by fd
-struct file_info* get_file (int fd)
-{
-    struct list_elem* e;
-    struct thread* current = thread_current();
-
-    for (e = list_begin(&current->file_list); e != list_end(&current->file_list);
-         e = list_next(e))
-    {
-        struct file_info* f = list_entry(e, struct file_info, elem);
-        if (f->fid == fd)
-            return f;
-    }
-    return NULL;
-}
-
-//Cleanup files and children from process
-//Used by process_exit to free all owned resources.
-void process_cleanup (struct thread* t)
-{
-    close_all_files(t);
-
-    struct list_elem* e = list_begin(&t->child_list);
+    e = list_begin(&t->child_list);
     while (e != list_end(&t->child_list))
     {
         struct list_elem* next = e->next;
@@ -406,29 +533,23 @@ void process_cleanup (struct thread* t)
     }
 }
 
-void fill_args(struct intr_frame *f, int* args, int numArgs)
+void 
+fill_args(struct intr_frame *f, int* args, int numArgs)
 {
     int i;
     for (i = 0; i < numArgs; ++i)
     {
         int *arg = (int*)f->esp + 1 + i;
-        test_bad_address((const void*)arg);
+        if (!is_user_vaddr(arg))
+            exit(-1);
+        kptr(arg);
         args[i] = *arg;
     }
 }
 
-void test_bad_address (const void* addr)
-{
-    //Validate user address
-    if (!is_user_vaddr(addr))
-        exit(-1);
-
-    //Validate unmapped
-    kptr(addr);
-}
-
 //Get unmapped. Fail if unavailable
-void* kptr (const void* addr)
+void * 
+kptr (const void* addr)
 {
     if (!is_user_vaddr((const void*)addr))
         exit(-1);
