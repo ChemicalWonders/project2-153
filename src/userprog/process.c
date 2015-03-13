@@ -74,7 +74,7 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp, &save_ptr);
 
   //Set user process load status
-  thread_current()->process->load_state = success ? LOAD_SUCCESS : LOAD_FAILURE;
+  thread_current()->thread_process->load_state = success ? LOAD_SUCCESS : LOAD_FAILURE;
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -105,7 +105,7 @@ process_wait (tid_t child_tid)// UNUSED)
 {
   //Get child thread
   //struct thread* t = get_thread(child_tid);
-  struct process* child = get_child(child_tid);
+  struct process_info *child = get_child(child_tid);
 
   //If invalid or already terminated or waiting
   if (child == NULL || child->waiting) {

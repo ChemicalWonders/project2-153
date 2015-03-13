@@ -86,7 +86,7 @@ syscall_handler (struct intr_frame *f)
     test_bad_address(f->esp);
 
     //Arguments passed to syscall, can only have 3 at most
-    int funcArgs[3]; 
+    int syscall_args[3]; 
     int *num_syscall = (int*)f->esp;
     void *kp = NULL;
     bool func_done = false;
@@ -97,74 +97,74 @@ syscall_handler (struct intr_frame *f)
         return;
     }
 
-    fill_args (f, &funcArgs[0], 1);
+    fill_args (f, &syscall_args[0], 1);
     switch (*num_syscall) 
     {
         case SYS_EXIT:
-            exit(funcArgs[0]);
+            exit(syscall_args[0]);
             return;
         
         case SYS_EXEC:
-            kp = kptr((const void*)funcArgs[0]);
+            kp = kptr((const void*)syscall_args[0]);
             f->eax = exec((const char*)kp);
             return;
         
         case SYS_WAIT:
-            f->eax = wait(funcArgs[0]);
+            f->eax = wait(syscall_args[0]);
             return;
 
         case SYS_REMOVE:
-            kp = kptr((const void*)funcArgs[0]);
+            kp = kptr((const void*)syscall_args[0]);
             f->eax = remove((const char*)kp);
             return;
         
         case SYS_OPEN:
-            kp = kptr((const void*)funcArgs[0]);
+            kp = kptr((const void*)syscall_args[0]);
             f->eax = open((const char*)kp);
             return;
         
         case SYS_FILESIZE:
-            f->eax = filesize(funcArgs[0]);
+            f->eax = filesize(syscall_args[0]);
             return;
 
         case SYS_TELL:
-            f->eax = tell(funcArgs[0]);
+            f->eax = tell(syscall_args[0]);
             return;
         
         case SYS_CLOSE:
-            close (funcArgs[0]);
+            close (syscall_args[0]);
             return;
         
         default:
             break; 
     }
-    fill_args (f, &funcArgs[0], 2);
+    fill_args (f, &syscall_args[0], 2);
     switch (*num_syscall)
     {
         case SYS_CREATE:
-            kp = kptr((const void*)funcArgs[0]);
-            f->eax = create((const char*)kp, (unsigned)funcArgs[1]);
+            kp = kptr((const void*)syscall_args[0]);
+            f->eax = create((const char*)kp, (unsigned)syscall_args[1]);
             return;
 
         case SYS_SEEK:
-            seek(funcArgs[0], (unsigned)funcArgs[1]);
+            seek(syscall_args[0], (unsigned)syscall_args[1]);
             return;
 
         default:
             break;
     }
 
-    fill_args (f, &funcArgs[0], 3);
+    fill_args (f, &syscall_args[0], 3);
     switch (*num_syscall)
     {
         case SYS_READ:
-            kp = kptr((const void*)funcArgs[1]);
-            f->eax = read(funcArgs[0], kp, (unsigned)funcArgs[2]);
+            kp = kptr((const void*)syscall_args[1]);
+            f->eax = read(syscall_args[0], kp, (unsigned)syscall_args[2]);
             return;
 
         case SYS_WRITE:
-            kp = kptr((const void*)funcArgs[1]);
-            f->eax = write(funcArgs[0], (const char*)kp, (unsigned)funcArgs[2]);
+            kp = kptr((const void*)syscall_args[1]);
+            f->eax = write(syscall_args[0], (const char*)kp, (unsigned)syscall_args[2]);
             return;
 
         default:
@@ -180,16 +180,16 @@ void halt (void)
 
 void exit (int status)
 {
-    struct thread* current = thread_current();
+    struct thread *cur = thread_current();
 
     //Set return status and flag parent
     //This is only needed if it's a child process, as in it has a parent.
-    if (get_thread(current->process->tid)) {
-        current->process->done = true;
-        current->process->exit_stat = status;
+    if (get_thread(cur->thread_process->tid)) {
+        cur->thread_process->done = true;
+        cur->thread_process->exit_stat = status;
     }
 
-    printf("%s: exit(%d)\n", current->name, status);
+    printf("%s: exit(%d)\n", cur->name, status);
     thread_exit();
 }
 
@@ -206,7 +206,7 @@ pid_t exec (const char* cmd_line)
         return -1;
 
     //Busy wait until process is done loading
-    struct process* process = get_child(pid);
+    struct process_info *process = get_child(pid);
     while ((get_child(pid)) && get_child(pid)->load_state == LOAD_PENDING);
 
     // if it failed 
@@ -247,7 +247,6 @@ bool create (const char* file, unsigned initial_size)
 
 bool remove (const char* file)
 {
-    //Do filesys call
     lock_acquire(&file_lock);
     bool ret = filesys_remove(file);
     lock_release(&file_lock);
@@ -260,7 +259,7 @@ int read (int fd, void* buffer, unsigned size)
     //Read from stdin
     if (fd == STDIN_FILENO) {
         unsigned i;
-        uint8_t* buf = (uint8_t*)buffer;
+        uint8_t *buf = (uint8_t*) buffer;
         for (i = 0; i < size; ++i)
             buf[i] = input_getc();
         return size;
@@ -293,7 +292,7 @@ int filesize (int fd)
 void seek (int fd, unsigned position)
 {
     //Fail if file is not open
-    struct file_info* f = get_file(fd);
+    struct file_info *f = get_file(fd);
     if (!f) return;
 
     //Do filesys call
@@ -400,20 +399,13 @@ void process_cleanup (struct thread* t)
     while (e != list_end(&t->child_list))
     {
         struct list_elem* next = e->next;
-        struct process* p = list_entry(e, struct process, list_ele);
-        list_remove(&p->list_ele);
-        free(p);
+        struct process_info *pros = list_entry(e, struct process_info, list_ele);
+        list_remove(&pros->list_ele);
+        free(pros);
         e = next;
     }
 }
-/*
-int get_arg(struct intr_frame *f, int i)
-{
-    int* arg = (int*)f->esp + 1 + i;
-    test_bad_address((const void*)arg);
-    return *arg;
-}
-*/
+
 void fill_args(struct intr_frame *f, int* args, int numArgs)
 {
     int i;
@@ -445,4 +437,7 @@ void* kptr (const void* addr)
         exit(-1);
     return kptr;
 }
+
+
+
 

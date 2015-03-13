@@ -211,14 +211,14 @@ thread_create (const char *name, int priority,
   intr_set_level (old_level);
 
   // Initialize user process
-  struct process* pr = malloc(sizeof(struct process));
+  struct process_info *pr = malloc(sizeof(struct process_info));
   pr->pid = (pid_t)tid;
   pr->tid = thread_current()->tid;
   pr->waiting = false;
   pr->load_state = LOAD_PENDING;
   pr->done = false;
   pr->fd = FD_START;
-  t->process = pr;
+  t->thread_process = pr;
   t->fd = FD_START;
 
   //New process is a child to current process
@@ -491,7 +491,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
   list_init(&t->file_list);
   list_init(&t->child_list);
-  t->process = NULL;
+  t->thread_process = NULL;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -633,14 +633,14 @@ struct thread* get_thread (tid_t tid)
 }
 
 //Get a child process from the child_list
-struct process* get_child (int pid)
+struct process_info* get_child (int pid)
 {
-    struct list_elem* e;
-    struct thread* curr = thread_current();
-    for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list);
+    struct list_elem *e;
+    struct thread *cur = thread_current();
+    for (e = list_begin(&cur->child_list); e != list_end(&cur->child_list);
          e = list_next(e))
     {
-        struct process* p = list_entry(e, struct process, list_ele);
+        struct process_info *p = list_entry(e, struct process_info, list_ele);
         if (p->pid == pid)
             return p;
     }
@@ -650,7 +650,7 @@ struct process* get_child (int pid)
 //Free child resources
 int exit_child (int pid)
 {
-  struct process* child = get_child(pid);
+  struct process_info *child = get_child(pid);
   list_remove(&child->list_ele);
   int exit_stat = child->exit_stat;
   free(child);

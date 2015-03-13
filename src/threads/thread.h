@@ -109,7 +109,7 @@ struct thread
 
     //Child process bookkeeping
     struct list child_list;             /* List of all child processes whose parent is this thread */
-    struct process* process;            /* Process info for a user process running in this thread */
+    struct process_info *thread_process;            /* Process info for a user process running in this thread */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -150,7 +150,7 @@ int thread_get_load_avg (void);
 
 enum thread_status get_thread_status (tid_t tid);
 struct thread* get_thread (tid_t tid);
-struct process* get_child (int pid);
+struct process_info * get_child (int pid);
 int exit_child (int pid);
 
 #endif /* threads/thread.h */

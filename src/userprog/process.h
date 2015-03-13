@@ -21,7 +21,7 @@ enum load_status
     Process Bookkeeping
      Stores the process information for a user process running in a thread
 */
-struct process {
+struct process_info {
    
     //Process Identification Values
     pid_t pid;                        // My process ID
