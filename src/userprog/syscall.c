@@ -204,9 +204,7 @@ void
 exit (int status)
 {
     struct thread *cur = thread_current();
-
-    //Set return status and flag parent
-    //This is only needed if it's a child process, as in it has a parent.
+    
     if (get_thread(cur->thread_process->tid)) {
         cur->thread_process->exit_status = status;
         cur->thread_process->is_done = true;
@@ -261,6 +259,7 @@ write (int fd, const void *buffer, unsigned size)
     }
     struct file_info *f;
     f = NULL;
+
     struct thread* cur = thread_current();
     struct list_elem *e;
     for (e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))

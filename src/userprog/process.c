@@ -69,8 +69,7 @@ process_execute (const char *file_name)
   return tid;
 }
 
-/* A thread function that loads a user process and starts it
-   running. */
+// A thread function that loads a user process and starts it running. 
 static void
 start_process (void *file_name_)
 {
@@ -487,56 +486,48 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 #define WORD_SIZE 4
 #define DEFAULT_ARGV 2
-
-/* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
+#define ARG_LIMIT 30
+//
+// Create a minimal stack by mapping a zeroed page at the top of user virtual memory.
 static bool
 setup_stack (void **esp, char* file_name, char** save_ptr)
 {
   uint8_t *kpage;
-  bool success = false;
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success) 
-      { 
+      void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
+      if ( install_page (upage, kpage, true) ){ 
         *esp = PHYS_BASE;
       }
-      else
-      {
+      else{
         palloc_free_page (kpage);
-        return success;
+        return false;
       }
     }
     
     // Build the stack
-    const int ARGLIMIT = 30;
-    char* args [ARGLIMIT];
-    int i = 0, argc = 0;
-    char* token = file_name;
+    char *args [ARG_LIMIT];
+    int argc;
+    char *token = file_name;
     
-    //Code adapted from pseudo code on whiteboard in lab6
     //Parse tokens forward into args array
-    while (token) {
+    for (argc = 0; token; ++argc) {
       *esp -= strlen(token) + 1;
       memcpy(*esp, token, strlen(token) + 1);
       args[argc] = *esp;
-      ++argc;
       token = strtok_r(NULL, " ", save_ptr);
     }
 
-    //Last vector NULL
     args[argc] = NULL;
 
-    //Word align
-    i = (size_t) *esp % 4;
+    int i = (size_t) *esp % 4;
     if (i != 0) {
       *esp -= i;
       memcpy(*esp, &args[argc], i);
     }
-           
+
     //Place args in reverse on stack with NULL at args[argc]
     for (i = argc; i >= 0; --i) {
       *esp -= sizeof(char*);
@@ -544,7 +535,7 @@ setup_stack (void **esp, char* file_name, char** save_ptr)
     }
 
     //argv pointer
-    char* argv = *esp;
+    char *argv = *esp;
     *esp -= sizeof(char**);
     memcpy(*esp, &argv, sizeof(char**));
 
@@ -552,13 +543,45 @@ setup_stack (void **esp, char* file_name, char** save_ptr)
     *esp -= sizeof(int);
     memcpy(*esp, &argc, sizeof(int));
 
-    //fake return
     *esp -= sizeof(void*);
     memcpy(*esp, &args[argc], sizeof(void*));
     
-    return success;
+    return true;
 }
+/*
+static bool setup_stack_helper (const char * cmd_line, uint8_t * kpage, uint8_t * upage, void ** esp) 
+{
+    size_t ofs = PGSIZE; //##Used in push!
+    char * const null = NULL; //##Used for pushing nulls
+    char *ptr; //##strtok_r usage
+    //##Probably need some other variables here as well...
+    char *token_string;
+    int *arg_list[ARG_LIMIT];
+    int argc = 0;
 
+    //##Parse and put in command line arguments, push each value
+    //##if any push() returns NULL, return false
+
+    //##push() a null (more precisely &null).
+    //##if push returned NULL, return false
+    if (!push ()){
+      return false;
+    }
+
+
+    //##Push argv addresses (i.e. for the cmd_line added above) in reverse order
+    //##See the stack example on documentation for what "reversed" means
+    //##Push argc, how can we determine argc?
+    //##Push &null
+    //##Should you check for NULL returns?
+
+    //##Set the stack pointer. IMPORTANT! Make sure you use the right value here...
+    *esp = upage + ofs;
+
+    //##If you made it this far, everything seems good, return true
+    return true;
+}
+*/
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
    If WRITABLE is true, the user process may modify the page;
@@ -571,10 +594,8 @@ setup_stack (void **esp, char* file_name, char** save_ptr)
 static bool
 install_page (void *upage, void *kpage, bool writable)
 {
-  struct thread *t = thread_current ();
+  struct thread *cur = thread_current ();
 
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  /* Verify that there's not already a page at that virtual address, then map our page there. */
+  return (pagedir_get_page (cur->pagedir, upage) == NULL && pagedir_set_page (cur->pagedir, upage, kpage, writable));
 }

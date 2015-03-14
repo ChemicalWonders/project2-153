@@ -153,4 +153,5 @@ struct thread* get_thread (tid_t tid);
 struct process_info * get_child (int pid);
 int free_child (int pid);
 
+
 #endif /* threads/thread.h */
